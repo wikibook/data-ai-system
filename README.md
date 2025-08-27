@@ -11,7 +11,9 @@
 | [모델 구조 이해하기](./docs/understanding-model-architecture.md) | 모델 구조를 분석하고 해석하는 방법을 정리한 문서 | 3장: 딥러닝의 핵심 |
 | [논문 쉽게 읽고 정리하기](./docs/paper-reading-guide.md) | 주요 논문을 효율적으로 읽고 체계적으로 정리하기 위한 가이드 | 4장: 딥러닝 응용 분야 |
 | [모델 서빙 시 트레이드오프 고려사항](./docs/model-serving-tradeoffs.md) | 실제 서비스 환경에서 모델 서빙 시 발생하는 성능·비용·정확도 간의 균형점 정리 | 10장: 시스템 아키텍처 |
+| [시스템 프롬프트 템플릿](./docs/system-prompt-template.md) | 시스템 프롬프트 작성 가이드 | 12장: 대규모 언어 모델 시스템 구성 |
 | [RAG 품질 저하 요인과 대응 전략](./docs/rag-quality-risks.md) | RAG 시스템의 품질 저하 원인과 대응 방법을 다룬 심화 문서 | 12장: 대규모 언어 모델 시스템 구성 |
+
 
 ### Contacts
 - `윤대희`: [s076923@gmail.com](mailto:s076923@gmail.com)
