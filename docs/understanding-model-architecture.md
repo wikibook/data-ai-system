@@ -2,6 +2,8 @@
 
 딥러닝 모델을 제대로 활용하려면 단순히 학습시키는 것에 그치지 않고, 내부 구조를 파악하는 과정이 필요하다. 모델의 구성 요소와 흐름을 이해하면 디버깅, 성능 개선, 커스터마이징 모두 훨씬 수월해진다. 이 글에서는 모델 구조를 이해하는 대표적인 방법들을 정리한다.
 
+> 예제는 PyTorch 2.x, torchvision 0.13 이상을 기준으로 한다. `pretrained=True` 인자는 deprecated 되었으므로 `weights=models.ResNet18_Weights.DEFAULT`와 같이 `weights` 열거형으로 사전학습 가중치를 지정한다.
+
 <br>
 
 ## 1. 모델 구조 직접 확인하기
@@ -13,7 +15,7 @@
 import torch
 from torchvision import models
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 print(model)
 ```
 
@@ -53,72 +55,92 @@ ResNet(
 
 <br>
 
-앞선 방법은 별도 도구 설치 없이 빠르게 구조 파악 가능하다. 그러나, 모델이 복잡할수록 출력이 길어지고 가독성이 떨어지므로 다음과 같은 코드를 활용한다면 보다 쉽게 구조를 파악할 수 있다.
+앞선 방법은 별도 도구 설치 없이 빠르게 구조를 파악할 수 있다. 그러나 모델이 복잡할수록 출력이 길어지고 가독성이 떨어지므로, 계층의 종류만 트리 형태로 출력하는 보조 함수를 활용하면 전체 구조를 한눈에 파악할 수 있다. `named_children()`은 직속 하위 모듈만 반환하므로, 재귀 호출로 깊이를 따라 내려가면서 계층 이름과 클래스명만 출력한다.
 
 **예제 코드**
 ```Python
 import torch
 from torchvision import models
 
-def print_named_children(module, prefix=""):
-    for name, child in module.named_children():
-        connector = "" if prefix == "" else "└ "
-        print(f"{prefix}{connector}{name}: {child}")
-        print_named_children(child, prefix + "│  ")
+def print_module_tree(module, prefix=""):
+    children = list(module.named_children())
+    for i, (name, child) in enumerate(children):
+        is_last = i == len(children) - 1
+        connector = "└─ " if is_last else "├─ "
+        print(f"{prefix}{connector}{name}: {child.__class__.__name__}")
+        print_module_tree(child, prefix + ("   " if is_last else "│  "))
 
-model = models.resnet18(pretrained=True)
-print_named_children(model)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+print_module_tree(model)
 ```
 
 **출력 결과**
 ```
-conv1: Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-bn1: BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-relu: ReLU(inplace=True)
-maxpool: MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
-layer1: Sequential(
-  (0): BasicBlock(
-    (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-    (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (relu): ReLU(inplace=True)
-    (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-    (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-  )
-  (1): BasicBlock(
-    (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-    (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-    (relu): ReLU(inplace=True)
-    (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-    (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-  )
-)
-│  └ 0: BasicBlock(
-  (conv1): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-  (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-  (relu): ReLU(inplace=True)
-  (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+├─ conv1: Conv2d
+├─ bn1: BatchNorm2d
+├─ relu: ReLU
+├─ maxpool: MaxPool2d
+├─ layer1: Sequential
+│  ├─ 0: BasicBlock
+│  │  ├─ conv1: Conv2d
+│  │  ├─ bn1: BatchNorm2d
+│  │  ├─ relu: ReLU
+│  │  ├─ conv2: Conv2d
+│  │  └─ bn2: BatchNorm2d
+│  └─ 1: BasicBlock
+│     ├─ conv1: Conv2d
+│     ├─ bn1: BatchNorm2d
+│     ├─ relu: ReLU
+│     ├─ conv2: Conv2d
+│     └─ bn2: BatchNorm2d
+├─ layer2: Sequential
+│  ├─ 0: BasicBlock
+│  │  ├─ conv1: Conv2d
+│  │  ├─ bn1: BatchNorm2d
+│  │  ├─ relu: ReLU
+│  │  ├─ conv2: Conv2d
+│  │  ├─ bn2: BatchNorm2d
+│  │  └─ downsample: Sequential
+│  │     ├─ 0: Conv2d
+│  │     └─ 1: BatchNorm2d
+│  └─ 1: BasicBlock
 ...
-│  │  └ conv2: Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-│  │  └ bn2: BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-avgpool: AdaptiveAvgPool2d(output_size=(1, 1))
-fc: Linear(in_features=512, out_features=1000, bias=True)
+├─ avgpool: AdaptiveAvgPool2d
+└─ fc: Linear
+```
+
+하위 계층까지 파라미터 형태를 함께 확인하려면 `named_modules()`를 사용한다. `named_children()`과 달리 모든 깊이의 모듈을 `layer1.0.conv1`처럼 점(.)으로 연결된 전체 경로와 함께 반환하므로, 특정 계층을 코드에서 직접 참조하거나 Forward Hook을 걸 때 필요한 이름을 확인하는 용도로 유용하다.
+
+```Python
+for name, module in model.named_modules():
+    if isinstance(module, torch.nn.Conv2d):
+        print(name, tuple(module.weight.shape))
+```
+
+```
+conv1 (64, 3, 7, 7)
+layer1.0.conv1 (64, 64, 3, 3)
+layer1.0.conv2 (64, 64, 3, 3)
+layer1.1.conv1 (64, 64, 3, 3)
+...
+layer4.1.conv2 (512, 512, 3, 3)
 ```
 
 <br>
 
 ## 2. Forward Hook으로 중간 출력 확인하기
 
-PyTorch의 `register_forward_hook을` 이용하면 각 계층의 실제 입·출력 텐서를 확인 가능하다. 디버깅 및 중간 특징맵 분석에 유용하다.
+PyTorch의 `register_forward_hook`을 이용하면 각 계층의 실제 입·출력 텐서를 확인할 수 있다. 디버깅 및 중간 특징맵 분석에 유용하다.
 
 **예제 코드**
-```
+```Python
 import torch
 from torchvision import models
 
 def hook(module, input, output):
     print(module.__class__.__name__, output.shape)
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 handle = model.layer1[0].register_forward_hook(hook)
 dummy_input = torch.randn(1, 3, 224, 224)
 _ = model(dummy_input)
@@ -147,7 +169,7 @@ import torch
 from torchvision import models
 from torchinfo import summary
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 summary(model, input_size=(1, 3, 224, 224), verbose=2)
 ```
 
@@ -203,7 +225,7 @@ import torch
 from torchvision import models
 from ptflops import get_model_complexity_info
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 macs, params = get_model_complexity_info(model, (3, 224, 224), as_strings=True)
 print(macs, params)
 ```
@@ -321,11 +343,11 @@ ResNet(
 
 **netron.app 사용 방법**
 
-1.학습된 모델을 .onnx, .pt, .pb 등의 포맷으로 저장
-2. netron.app에 드래그 앤 드롭
+1. 학습된 모델을 `.onnx`, `.pt`, `.pb` 등의 포맷으로 저장
+2. netron.app에 드래그 앤 드롭(또는 `pip install netron` 후 `netron model.onnx`로 로컬 실행)
 3. 웹 브라우저에서 계층 구조, 입력·출력 텐서 형태, 파라미터 수를 시각적으로 확인
 
-복잡한 모델도 그래프 형태로 직관적으로 파악 가능하며, 모듈 간 연결 관계(예: Skip-connection, Attention 구조 등)를 확인할 때 특히 유용하다.
+복잡한 모델도 그래프 형태로 직관적으로 파악할 수 있으며, 모듈 간 연결 관계(예: Skip-connection, Attention 구조 등)를 확인할 때 특히 유용하다. PyTorch 모델을 ONNX로 내보내 Netron에서 확인하는 구체적인 절차는 [모델 변환과 경량화 실습(ONNX/TensorRT)](./model-conversion-onnx-tensorrt.md)에서 다룬다.
 
 <br>
 
@@ -344,7 +366,7 @@ import torch
 from torchvision import models
 from torchviz import make_dot
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 
 x = torch.randn(1, 3, 224, 224)
 y = model(x)
@@ -365,7 +387,7 @@ make_dot(y, params=dict(model.named_parameters())).render("graph", format="png")
 import torch
 from torchvision import models
 
-model = models.resnet18(pretrained=True)
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
 
 # 특정 계층의 가중치 보기
 for name, param in model.named_parameters():
@@ -429,4 +451,4 @@ tensor([[[-1.0419e-02, -6.1356e-03, -1.8098e-03,  7.4841e-02,  5.6615e-02,
 <br>
 <br>
 
-모델 구조 이해는 단순한 표면적 탐구가 아니라 `디버깅(오류 계층 탐색)`, `최적화(병목 지점 파악)`, `연구 응용(기존 모델을 변형해 새로운 실험)`을 가능하게 하는 과정이다. 이러한 방법들을 적절히 활용하면, 모델은 더 이상 블랙박스로 머무르지 않고 이해하고 조작할 수 있는 시스템으로 다룰 수 있게 된다.
+모델 구조 이해는 단순한 표면적 탐구가 아니라 `디버깅(오류 계층 탐색)`, `최적화(병목 지점 파악)`, `연구 응용(기존 모델을 변형해 새로운 실험)`을 가능하게 하는 과정이다. 이러한 방법들을 적절히 활용하면, 모델은 더 이상 블랙박스로 머무르지 않고 이해하고 조작할 수 있는 시스템으로 다룰 수 있게 된다. 구조를 파악한 모델을 실제 서빙 환경으로 옮기는 과정은 [모델 변환과 경량화 실습(ONNX/TensorRT)](./model-conversion-onnx-tensorrt.md)과 [모델 서빙 시 트레이드오프 고려사항](./model-serving-tradeoffs.md)으로 이어진다.
